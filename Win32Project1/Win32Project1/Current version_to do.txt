@@ -1,0 +1,13 @@
+Add power ups
+
+Implement physics
+
+Clean up / refactor / organize
+
+Add text display
+
+Add debug draw
+
+Implement asteroids and dynamic spawning
+
+Post-Processing effects and sub-routines
