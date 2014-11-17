@@ -1,5 +1,7 @@
-
+#pragma once
 #include "kernel.h"
+#include <math.h>
+#include <glm\glm.hpp>
 
 
 #ifndef PI

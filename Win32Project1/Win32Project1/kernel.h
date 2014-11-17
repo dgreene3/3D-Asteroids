@@ -1,8 +1,10 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
 
-#include "Precompiled.h"
+#include <stdio.h>
 
 
 __global__ void kernel(float3* pos, unsigned int width, unsigned int height, float thetaStep, float phiStep);
