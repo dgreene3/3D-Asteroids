@@ -94,6 +94,9 @@ bool GameEngine::Init() {
 }
 
 void GameEngine::OnResize() {
+	if(!shaderReady) 
+		return; // some systems call resize before shader has been loaded
+
 	Engine::OnResize();
 }
 

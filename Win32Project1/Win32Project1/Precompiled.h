@@ -21,9 +21,9 @@
 #include <IL/ilut.h>
 
 // GLM
-#include <glm\glm.hpp>
-#include <gtc/type_ptr.hpp>
-#include <gtc/matrix_transform.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 // CUDA 
 #include <cuda.h>

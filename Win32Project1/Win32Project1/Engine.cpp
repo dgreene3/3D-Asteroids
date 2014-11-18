@@ -25,7 +25,7 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) 
 Engine::Engine(HINSTANCE hInstance, int Width, int Height) : 
 	WindowWidth(Width), WindowHeight(Height), AppInst_(hInstance) {
 		engine = this;
-
+		shaderReady = false;
 }
 Engine::~Engine() {
 	/* Release objects */
@@ -69,7 +69,7 @@ bool Engine::Init() {
 	if(!InitObjectInsts())
 		return false;
 
-
+	shaderReady = true;
 
 	/* Init Mouse for FPS movement with no clicking */
 	fpsMode = true;

@@ -112,6 +112,7 @@ protected:
 	float farZ;
 	float fFrustumScale;
 
+	bool shaderReady;
 };
 
 
