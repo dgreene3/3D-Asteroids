@@ -13,6 +13,8 @@
 #include "Enviroment.h"
 #include "World.h"
 #include "Player.h"
+#include "Quad.h"
+#include "PostProcess.h"
 
 
 
@@ -49,6 +51,10 @@ public:
 	virtual void OnMouseUp(WPARAM btnState, int x, int y)  { }
 	virtual void OnMouseMove(WPARAM btnState, int x, int y){ }
 	virtual void OnMouseFire(WPARAM btnState, int x, int y) { }
+
+	virtual void DebugMode() { }
+	virtual void MenuMode() { }
+	virtual void ChangeEffect() { }
 
 		
 protected:
@@ -87,6 +93,10 @@ protected:
 	Shader* currShaderProgram;
 
 
+	/* Post Process */
+	PostProcess* postProcess;
+
+
 	/* Assets */
 	MeshContainter meshContainer_;
 	ShaderContainer shaderContainer_;
@@ -96,6 +106,8 @@ protected:
 	/* Objects */
 	World* world;
 
+	/* Quad */
+	Quad* quad;
 
 	/* Camera */
 	Camera* cam;
@@ -112,7 +124,6 @@ protected:
 	float farZ;
 	float fFrustumScale;
 
-	bool shaderReady;
 };
 
 

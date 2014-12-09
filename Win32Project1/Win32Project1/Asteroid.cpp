@@ -2,9 +2,6 @@
 
 #include "Asteroid.h"
 
-
-
-
 #ifndef PI
 #define PI 3.14159265358979323846f
 #endif
@@ -19,6 +16,11 @@ Asteroid::Asteroid(string file, Mesh* mesh, Shader* shader) : Object(mesh, shade
 	vDir = glm::vec3(0.0f);
 
 	hitPoints = 5;
+
+	delayedDelete = false;
+	timeLeft = 3.0f;
+	timer = new Time();
+	timer->Reset();
 }
 
 
@@ -27,8 +29,9 @@ bool Asteroid::Initialize() {
 	mt19937 gen(rd());
 	uniform_real_distribution<> theta(0.0f, 180.0f);
 	uniform_real_distribution<> phi(0.0f, 360.0f);
-	uniform_real_distribution<> size(1.0f, 30.0f);
+	uniform_real_distribution<> size(5.0f, 30.0f);
 	uniform_real_distribution<> velocity(1.0f, 50.0f);
+	uniform_real_distribution<> dist(100.0f, 1500.0f);
 
 
 	float x, y, z;
@@ -40,14 +43,17 @@ bool Asteroid::Initialize() {
 	randomPhi = (float)( phi(gen) * (PI / 180.0f) );	  // [0, 2pi]
 
 	
+	float distance = (float)dist(gen);
 	// Get random vector on unit sphere
-	x = 1000.0f * sinf(randomTheta) * cosf(randomPhi);
-	y = 1000.0f * cosf(randomTheta);
-	z = 1000.0f * sinf(randomTheta) * sinf(randomPhi);
+	x = distance * sinf(randomTheta) * cosf(randomPhi);
+	y = distance * cosf(randomTheta);
+	z = distance * sinf(randomTheta) * sinf(randomPhi);
 	
 	this->PosW = glm::vec3(x, y, z);
-	//this->PosW = glm::vec3(0.0f, 0.0f, 100.0f);
-	vDir = glm::vec3(0.0f) - PosW; // direction towards origin of world, which is sun
+
+
+
+	vDir = glm::vec3(y, z, x) - PosW; // direction towards origin of world, which is sun
 	vDir = glm::normalize(vDir);
 	vDir *= velocity(gen); // Init velocity between 1.0f and 50.0f
 
@@ -72,12 +78,31 @@ void Asteroid::Update(float dt) {
 	
 	SetTransformation(translateMatrix * scaleMatrix);
 
+
+	// If we exit game world, delayed destroy so that the asteroid
+	// goes outside the game world and we don't see it just disappear
+	if(delayedDelete) {
+		timer->Tick();
+		float delta = timer->DeltaTime();
+		timeLeft -= delta;
+		if(timeLeft <= 0) {
+			this->FlagToDelete();
+		}
+	}
+
 }
 
 
+glm::vec3 Asteroid::GetPos()const {
+	return PosW;
+}
 
-float Asteroid::GetRadius() {
+float Asteroid::GetRadius()const {
 	return radius;
+}
+
+ObjectType Asteroid::GetType()const {
+	return ObjectType::ASTEROID;
 }
 
 
@@ -89,4 +114,55 @@ bool Asteroid::Hit() {
 	}else {
 		return true; // destory asteroid
 	}
+}
+
+
+void Asteroid::Reflect() {
+	random_device rd;
+	mt19937 gen(rd());
+	uniform_real_distribution<> velocity(1.0f, 50.0f);
+
+	float x, y, z;
+	x = (float)velocity(gen);
+	y = (float)velocity(gen);
+	z = (float)velocity(gen);
+
+	vDir = glm::vec3(x, y, z);
+	vDir = glm::normalize(vDir);
+	vDir *= velocity(gen); // Init velocity between 1.0f and 50.0f
+
+	// offset asteroid by size
+	//PosW = (radius * vDir) + PosW;
+}
+
+
+void Asteroid::Collide(Object* other) {
+
+	switch(other->GetType()) {
+		case ObjectType::ASTEROID:
+			if(other->GetRadius() > this->GetRadius()) {
+				this->FlagToDelete(); // won't be deleted until we finish all events
+			}else {
+				this->Reflect();
+			}
+			break;
+		case ObjectType::PLANET:
+			//this->FlagToDelete();
+			this->Reflect();
+			break;
+		case ObjectType::BULLET:
+			if(this->Hit()) {
+				this->FlagToDelete();
+			}
+			break;
+		case ObjectType::LEVEL:
+			delayedDelete = true;
+			timer->Start();
+			break;
+		case ObjectType::PLAYER:
+			//this->FlagToDelete();
+			//this->Reflect();
+			break;
+	}
+	
 }

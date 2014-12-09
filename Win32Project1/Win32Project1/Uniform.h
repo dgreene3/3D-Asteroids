@@ -6,7 +6,7 @@
 
 
 
-enum UniformType { INT_U, FLOAT_U, FLOAT4_U, MATRIX4_U, SAMPLER2D_U };
+enum UniformType { INT_U, FLOAT_U, FLOAT2_U, FLOAT4_U, MATRIX4_U, SAMPLER2D_U };
 
 
 class Uniform {
@@ -15,8 +15,10 @@ public:
 	virtual ~Uniform();
 
 	GLuint GetLocation()const;
+
 	void SetUniform(unsigned int& integer);
 	void SetUniform(glm::mat4& matrix);
+	void SetUniform(glm::vec2& v);
 
 
 protected:

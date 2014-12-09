@@ -9,7 +9,8 @@ using namespace glm;
 #define WIDTH_SCALE 0.10f
 #define HEIGHT_SCALE 0.10f
 #define LENGTH_SCALE 0.10f
-#define M_PI 3.14159265358979323846f
+
+#define LIFE_SPAN 5.0f
 
 Laser::Laser(Mesh* mesh, Shader* shader) : Object(mesh, shader, false) {
 
@@ -41,6 +42,8 @@ bool Laser::Initialize(vec3 pos, vec3 vDir, float theta, float phi) {
 	rot = glm::rotate(rot, phi, vec3(0.0f, 1.0f, 0.0f)); 
 	rotationMatrix = rot;
 
+	lifeSpan = LIFE_SPAN;
+
 	return true;
 }
 
@@ -56,8 +59,28 @@ void Laser::Update(float dt) {
 	
 
 	SetTransformation(translateMatrix * rotationMatrix * scaleMatrix);
+
+	lifeSpan -= dt;
+	if(lifeSpan <= 0) {
+		this->FlagToDelete();
+	}
+}
+
+glm::vec3 Laser::GetPos()const {
+	return PosW;
 }
 
 float Laser::GetRadius()const {
 	return radius;
+}
+
+ObjectType Laser::GetType()const {
+	return ObjectType::BULLET;
+}
+
+
+void Laser::Collide(Object* other) {
+
+	this->FlagToDelete();
+	
 }

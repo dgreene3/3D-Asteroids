@@ -1,2 +1,2 @@
-Sphere sun.bmp   10.0	  0.0 	 0.0 	0.5
+Sphere sun        10.0	  0.0 	 0.0 	0.5
 Mesh   Texture   PlanetR OrbitR OrbitS RotationS

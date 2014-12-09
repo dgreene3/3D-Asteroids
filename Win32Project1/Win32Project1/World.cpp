@@ -1,39 +1,147 @@
 #pragma once
 
+#include "Precompiled.h"
 #include "World.h"
+#include "Enviroment.h"
 #include "Physics.h"
+#include "PowerUp.h"
 
 
 
+using namespace std;
 using namespace glm;
 
-World::World() {
-	
+World::World(MeshContainter* meshes, ShaderContainer* shaders, TextureContainer* textures) {
+	// Store pointers to containers so world can access them
+	meshContainer_ = meshes;
+	shaderContainer_ = shaders;
+	textureContainer_ = textures;
 }
 World::~World() {
 	// free all objects
+	
+	delete player;
+	delete levelEnv;
+	
+	for(unsigned int i = 0; i < staticObjects.size(); ++i) {
+		delete staticObjects.at(i);
+	}
+	for(unsigned int i = 0; i < asteroids.size(); ++i) {
+		delete asteroids.at(i);
+	}
+	for(unsigned int i = 0; i < bullets.size(); ++i) {
+		delete bullets.at(i);
+	}
+	for(unsigned int i = 0; i < powerups.size(); ++i) {
+		delete powerups.at(i);
+	}
+	for(unsigned int i = 0; i < events.size(); ++i) {
+		delete events.at(i);
+	}
 }
 
-void World::Initialize(glm::vec3 pos, glm::vec3 dir) {
+bool World::Initialize(glm::vec3 pos, glm::vec3 dir) {
 	/* Initialize player */
 
 	player = new Player();
 	player->Initialize(pos, dir);
 
+
+	/* Mesh used for Planets */
+	Mesh* sphereMesh = meshContainer_->GetMeshPtr("Sphere");
+	/* Basic shader program */
+	Shader* basicShader = shaderContainer_->GetShaderPtr("Basic");
+
+	/* Load world Objects */
+	ifstream stream;
+	string currLine;
+
+	stream.open("Objects/Level.txt");
+	if(!stream.is_open()) {
+		return false;
+	}
+
+	getline(stream, currLine);
+	while(stream.good()) {
+		istringstream lineStream(currLine);
+
+		string type, file;
+		lineStream >> type;
+		lineStream >> file;
+		// Get type of object: S - Static, 
+		switch(type.at(0)) {
+			case 'S':
+				Object* currObj = new Planet(file.c_str(), sphereMesh, basicShader);
+				currObj->Initialize();
+				string texName = currObj->GetTextureName();
+				Texture* tex = textureContainer_->GetTexPtr(texName);
+				currObj->SetTexture(tex);
+
+				AddStaticObject(currObj);
+				//AddObject(currObj);
+				break;
+		}
+		getline(stream, currLine);
+	}
+
+	/* Create enviroment object for the level: Stars background */
+	Object* level = new Enviroment();
+	level->SetMesh(sphereMesh);
+	level->SetShader(basicShader);
+	level->SetTexture(textureContainer_->GetTexPtr("stars"));
+
+	AddLevelObject(level);
+
+	/* Create Asteroid objects */
+	//Texture* tex = textureContainer_->GetTexPtr("asteroid1");
+	for(unsigned int i = 0; i < 15; ++i) {
+		SpawnAsteroid();
+	}
+	
+
+
+	/* Create Power-up Box */
+	Mesh* mesh = meshContainer_->GetMeshPtr("Rectangle");
+	//Shader* basicShader = shaderContainer_->GetShaderPtr("Basic");
+
+	vec3 powerUpPos = vec3(1000.0f, -800.0f, -450.0f);
+	
+
+	PowerUp* powerUp = new PowerUp(mesh, basicShader);
+	powerUp->Initialize(powerUpPos);
+
+	AddPowerUpObject(powerUp);
+	
+
+
+	return true;
 }
 
 void World::UpdatePlayer(glm::vec3 pos, glm::vec3 dir) {
 	player->Update(pos, dir);
 }
 
+void World::SpawnAsteroid() {
+	/* Mesh used for Planets */
+	Mesh* sphereMesh = meshContainer_->GetMeshPtr("Sphere");
+	/* Basic shader program */
+	Shader* basicShader = shaderContainer_->GetShaderPtr("Basic");
 
+	/* Create Asteroid objects */
+	Texture* tex = textureContainer_->GetTexPtr("asteroid1");
+	
+	Asteroid* currAsteroid = new Asteroid("Objects/Asteroids.txt", sphereMesh, basicShader);
+	currAsteroid->Initialize();
+	currAsteroid->SetTexture(tex);
 
-void World::AddObject(Object* obj) {
+	AddAsteroidObject(currAsteroid);
 	
 }
-void World::RemoveObject() {
-	
+
+unsigned World::AsteroidCount() {
+	return asteroids.size();
 }
+
 
 void World::Update(float dt) {
 	
@@ -51,25 +159,35 @@ void World::Update(float dt) {
 	for(unsigned int i = 0; i < bullets.size(); ++i) {
 		bullets.at(i)->Update(dt);
 	}
+	for(unsigned int i = 0; i < powerups.size(); ++i) {
+		powerups.at(i)->Update(dt);
+	}
 
 
 	/* Physics */
+	vec3 playerPos = player->GetPos();
+	float playerR = player->GetRadius();
+
+
 
 	/* ================= Check for collisions ========================== */
 
 	/* Check for collisions between Asteroids and Planets and Sun and bullets */
 	for(unsigned int i = 0; i < asteroids.size(); ++i) {
+
 		Asteroid* currA = dynamic_cast<Asteroid*>(asteroids.at(i));
 		vec3 currPos = currA->GetPos();
 		float radius = currA->GetRadius();
+
+
 		// Go through each static object for each asteroid 
 		for(unsigned int j = 0; j < staticObjects.size(); ++j) {
 			// Asteroid 1, Planet, Sun 2
 			Planet* currP = dynamic_cast<Planet*>(staticObjects.at(j));
 			float radiusP = currP->GetRadius();
 			if( StaticSphereToSphere(currPos, radius, currP->GetPos(), radiusP) ) {
-				currA->FlagToDelete();
-				freeAsteroidList.push_back(i);
+				CollisionEvent* E = new CollisionEvent(currA, currP, i, j);
+				events.push_back(E);
 			}
 		}
 		// Go through all bullets 
@@ -79,25 +197,29 @@ void World::Update(float dt) {
 			float r = currLaser->GetRadius();
 
 			if( StaticSphereToSphere(currPos, radius, laserPos, r) ) {
-				if(currA->Hit()) {
-					// destroy asteroid after so many hits
-					currA->FlagToDelete();
-					freeAsteroidList.push_back(i);
-
-					// destory bullet
-					currLaser->FlagToDelete();
-					freeBulletList.push_back(j);
-				}else {
-					// destroy only bullet
-					currLaser->FlagToDelete();
-					freeBulletList.push_back(j);
-				}
+				CollisionEvent* E = new CollisionEvent(currA, currLaser, i, j);
+				events.push_back(E);
 			}
 		}
+
+		// Check for collision between player and asteroids
+		if( StaticSphereToSphere(playerPos, playerR, currPos, radius) ) {
+			CollisionEvent* E = new CollisionEvent(currA, player);
+			events.push_back(E);
+			break;
+		}
+
+		// Check for collision between asteroid and level
+		float dist = glm::length(currA->GetPos());
+		if(dist >= levelEnv->GetRadius()) {
+			CollisionEvent* E = new CollisionEvent(currA, levelEnv, 0, 0); // last two args not used
+			events.push_back(E);
+			break;
+		}
+
 	}
 
 
-	// BUGS HERE 
 	/* Check for collision between two Asteroids */
 	if(asteroids.size() >= 2) {
 		for(unsigned int i = 0; i < asteroids.size()-1; ++i) {
@@ -106,11 +228,8 @@ void World::Update(float dt) {
 				Asteroid* a2 = dynamic_cast<Asteroid*>(asteroids.at(j));
 
 				if( StaticSphereToSphere(a1->GetPos(), a1->GetRadius(), a2->GetPos(), a2->GetRadius()) ) {
-					a1->FlagToDelete();
-					a2->FlagToDelete();
-
-					freeAsteroidList.push_back(i);
-					freeAsteroidList.push_back(j);
+					CollisionEvent* E = new CollisionEvent(a1, a2, i, j);
+					events.push_back(E);
 				}
 			}
 		}
@@ -128,50 +247,43 @@ void World::Update(float dt) {
 			Planet* currPlanet = dynamic_cast<Planet*>(staticObjects.at(j));
 
 			if( StaticSphereToSphere(laserPos, r, currPlanet->GetPos(), currPlanet->GetRadius()) ) {
-				currLaser->FlagToDelete();
-				freeBulletList.push_back(i);
+				CollisionEvent* E = new CollisionEvent(currLaser, currPlanet, i, j);
+				events.push_back(E);
 				break;
 			}
 		}
 	}
 
-	/* Check for collision between Player and [Asteroids, Planets, and Sun] */
-	vec3 playerPos = player->GetPos();
-	float playerR = player->GetRadius();
-	bool playerHit = false;
+	
+	// Check for collision between player and planets
+	for(unsigned int i = 0; i < staticObjects.size(); ++i) {
+		Planet* currP = dynamic_cast<Planet*>(staticObjects.at(i));
 
-	for(unsigned int i = 0; i < asteroids.size(); ++i) {
-		Asteroid* currA = dynamic_cast<Asteroid*>(asteroids.at(i));
-
-		if( StaticSphereToSphere(playerPos, playerR, currA->GetPos(), currA->GetRadius()) ) {
-			// player hit
-			player->Hit();
-			playerHit = true; // if true, we don't check second for loop
-
-			currA->FlagToDelete();
-			freeAsteroidList.push_back(i);
+		if( StaticSphereToSphere(playerPos, playerR, currP->GetPos(), currP->GetRadius()) ) {
+			CollisionEvent* E = new CollisionEvent(currP, player);
+			events.push_back(E);
 
 			break;
-
 		}
 	}
-	// only check if we are not hit yet, if we are hit, no need to do more checking
-	if(!playerHit) {
-		for(unsigned int i = 0; i < staticObjects.size(); ++i) {
-			Planet* currP = dynamic_cast<Planet*>(staticObjects.at(i));
 
-			if( StaticSphereToSphere(playerPos, playerR, currP->GetPos(), currP->GetRadius()) ) {
-				// player hit
-				player->Hit();
-				playerHit = true;
+	// Check for collision between powerups and player
+	for(unsigned int i = 0; i < powerups.size(); ++i) {
+		PowerUp* curr = dynamic_cast<PowerUp*>(powerups.at(i));
 
-				break;
-			}
+		if(StaticSphereToSphere(curr->GetPos(), curr->GetRadius(), playerPos, playerR)) {
+			CollisionEvent* E = new CollisionEvent(curr, player);
+			events.push_back(E);
 		}
 	}
 	
+	
 
-
+	/* Update Events */
+	for(unsigned int i = 0; i < events.size(); ++i) {
+		events.at(i)->Update();
+	}
+	events.resize(0); // empty for next frame
 
 	/* Check if bullet or asteroid is outside of stars, if radius is more than stars radius */
 
@@ -182,47 +294,88 @@ void World::Update(float dt) {
 
 
 	/* Release all in-active objects */
-	// BUGS HERE TOO
 	auto it = asteroids.begin();
-	for(unsigned int i = 0; i < freeAsteroidList.size(); ++i) {
-		int index = freeAsteroidList.at(i); // index of asteroid in vector 
-		delete asteroids.at(index);			// delete object release memory
-		asteroids.erase(it+index);			// remove asteroid from vector of asteroids
+	for(unsigned int i = 0; i < asteroids.size(); ++i) {
+		if(!asteroids.at(i)->GetActive()) {
+			delete asteroids.at(i);
+			asteroids.erase(it+i);
+		}
 	}
-	freeAsteroidList.resize(0);
+	
 
 	it = bullets.begin();
-	for(unsigned int i = 0; i < freeBulletList.size(); ++i) {
-		int index = freeBulletList.at(i); // index of asteroid in vector 
-		delete bullets.at(index);			// delete object release memory
-		bullets.erase(it+index);			// remove asteroid from vector of asteroids
+	for(unsigned int i = 0; i < bullets.size(); ++i) {
+		if(!bullets.at(i)->GetActive()) {
+			delete bullets.at(i);
+			bullets.erase(it+i);
+			it = bullets.begin();
+		}
 	}
-	freeBulletList.resize(0);
+
+	it = powerups.begin();
+	for(unsigned int i = 0; i < powerups.size(); ++i) {
+		if(!powerups.at(i)->GetActive()) {
+			delete powerups.at(i);
+			powerups.erase(it+i);
+		}
+	}
+	
 }
 
 void World::Render() {
 
+	int drawOption;
+
+
+	drawOption = 4;
+	currShader->SetUniform("test", drawOption);
 
 	/* Draw all static objects like planets */
 	for(unsigned int i = 0; i < staticObjects.size(); ++i) {
+		// draw sun with just texture, no lighting
+		if(i == 6) {
+			drawOption = 1;
+			currShader->SetUniform("test", drawOption);
+		}
 		staticObjects.at(i)->Render();
 	}
-	/* Draw enviroment level */
-	levelEnv->Render();
 	
 
+	drawOption = 4;
+	currShader->SetUniform("test", drawOption);
 	/* Draw all dynamic objects like asteroids */
 	for(unsigned int i = 0; i < asteroids.size(); ++i) {
 		asteroids.at(i)->Render();
 	}
 
 
-	int i = 0;
-	currShader->SetUniform("test", i);
+
+	drawOption = 1;
+	currShader->SetUniform("test", drawOption);
+	/* Draw enviroment level */
+	levelEnv->Render();
+
+
+	
+	if(player->isPowerUpActive()) {
+		drawOption = 3;
+	}else {
+		drawOption = 0;
+	}
+	currShader->SetUniform("test", drawOption);
 	/* Draw all bullets */
 	for(unsigned int i = 0; i < bullets.size(); ++i) {
 		bullets.at(i)->Render();
 	}
+	
+
+	drawOption = 2;
+	currShader->SetUniform("test", drawOption);
+	for(unsigned int i = 0; i < powerups.size(); ++i) {
+		powerups.at(i)->Render();
+	}
+
+
 
 }
 
@@ -237,6 +390,11 @@ void World::AddAsteroidObject(Object* obj) {
 void World::AddBulletObject(Object* obj) {
 	bullets.push_back(obj);
 }
+void World::AddPowerUpObject(Object* obj) {
+	powerups.push_back(obj);
+}
+
+
 void World::AddLevelObject(Object* obj) {
 	levelEnv = obj;
 }
@@ -254,4 +412,12 @@ bool World::CheckPlayerAlive() {
 }
 void World::ResetPlayer(glm::vec3 pos, glm::vec3 dir) {
 	player->Reset(pos, dir);
+}
+
+void World::PlayerFire(Camera* cam) {
+	Mesh* mesh = meshContainer_->GetMeshPtr("Rectangle");
+	Shader* basicShader = shaderContainer_->GetShaderPtr("Basic");
+
+	player->Fire(&bullets, mesh, basicShader, cam); // Fire() will add bullets to the world bullet container
+
 }

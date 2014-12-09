@@ -3,7 +3,6 @@
 #include <math.h>
 #include <glm\glm.hpp>
 
-
 #ifndef PI
 #define PI 3.14159265358979323846f
 #endif
@@ -11,7 +10,7 @@
 
 using namespace std;
 
-__global__ void kernel(float3* pos, unsigned int width, unsigned int height, float thetaStep, float phiStep) {
+__global__ void kernel(float3* pos, float3* normal, unsigned int width, unsigned int height, float thetaStep, float phiStep) {
 	//NOTE: threadIdx.x is row and blockIdx.x is col
 
 	float x, y, z;
@@ -43,6 +42,11 @@ __global__ void kernel(float3* pos, unsigned int width, unsigned int height, flo
 	
 	//use index to get correct place in array
 	pos[index] = make_float3(x, y, z);
+
+	// compute normal
+	glm::vec3 n = glm::vec3(x, y, z);
+	n = glm::normalize(n);
+	normal[index] = make_float3(n.x, n.y, n.z);
 }
 
 
@@ -93,10 +97,10 @@ __global__ void kernel3(float2* tex, unsigned int width, unsigned int height, fl
 
 
 
-void kernel_Pos(float3* pos, unsigned int width, unsigned int height, float thetaFac, float phiFac) {
+void kernel_Pos_Normal(float3* pos, float3* normal, unsigned int width, unsigned int height, float thetaFac, float phiFac) {
 	dim3 block, grid; /* block describes threads within a block; grid describes how many blocks overall */
 
-	kernel<<< dim3(1, 1, 1), dim3(width, height, 1)>>>(pos, width, height, thetaFac, phiFac);
+	kernel<<< dim3(1, 1, 1), dim3(width, height, 1)>>>(pos, normal, width, height, thetaFac, phiFac);
 }
 
 void kernel_Tex(float2* tex, unsigned int width, unsigned int height, float dx, float dy) {
@@ -111,6 +115,7 @@ void kernel_Index(unsigned int* i, unsigned int width, unsigned int height) {
 
 	kernel2<<<dim3(1, 1, 1), dim3((width-1), (height-1), 1) >>>(i, width, height); /* width-1 */
 }
+
 
 
 //void kernel_Asteroid(float3* pos, unsigned int width, unsigned int height) {

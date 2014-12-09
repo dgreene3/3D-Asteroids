@@ -20,7 +20,11 @@ public:
 	void Update(float dt); 
 
 
-	float GetRadius();
+	glm::vec3 GetPos()const;
+	float GetRadius()const;
+	ObjectType GetType()const;
+
+	void Collide(Object* other);
 	
 private:
 

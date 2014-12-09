@@ -1,7 +1,7 @@
 #include "Camera.h"
 
 #define TURNRADIANS 0.1963495f
-#define CAM_STEP_DELTA 1.10f
+#define CAM_STEP_DELTA 4.10f
 
 using namespace glm;
 

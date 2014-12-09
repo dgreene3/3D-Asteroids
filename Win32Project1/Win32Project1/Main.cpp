@@ -1,3 +1,23 @@
+/* Start Header -------------------------------------------------------
+
+File Name: Main.cpp
+Purpose: Contains the entry point for the program.
+Creates GameEngine, initializes and starts the game loop.
+
+Language: <C++ Visual Studio >
+Platform: Windows 7/8. Requires Nvidia GPU and CUDA
+
+Project: <d.greene, CS 529, Final Game Project. 
+
+Author: <Dustin Greene, d.greene, 60002414>
+
+Creation date: October 2, 2014
+
+- End Header --------------------------------------------------------*/
+
+
+
+
 #pragma once
 #include "Engine.h"
 #include "Object.h"
@@ -7,7 +27,11 @@
 #include "Laser.h"
 #include "Reticle.h"
 
-#define BULLET_SPEED 200.0f
+#include <stdio.h>
+#include <io.h>
+#include <fcntl.h>
+
+
 #define PER_PIXEL_TURN_RAD 0.0025f		// Used for mouse movement
 
 using namespace glm;
@@ -22,6 +46,7 @@ public :
 	void OnResize();
 	void UpdateScene(float dt);
 	void DrawScene();
+	void DrawWorld();
 
 	/* Mouse function overrides */
 	void OnMouseDown(WPARAM btnState, int x, int y);
@@ -29,11 +54,21 @@ public :
 	void OnMouseMove(WPARAM btnState, int x, int y);
 	void OnMouseFire(WPARAM btnState, int x, int y);
 
+	void DebugMode();
+	void MenuMode();
+	void ChangeEffect();
+
 private:
 	
 	POINT prevMousePos;
-
 	Reticle* reticle;
+
+	bool debugMode;
+	bool menuMode;
+	bool gameOver;
+	bool gameWin;
+
+	bool shaderLoaded;
 };
 
 
@@ -41,11 +76,37 @@ private:
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {
 
+
+#ifdef _DEBUG
+	/* Allocate Console for Debug */
+	AllocConsole();
+	HANDLE handle_out = GetStdHandle(STD_OUTPUT_HANDLE);
+	int hCrt = _open_osfhandle((long)handle_out, _O_TEXT);
+	FILE* hf_out = _fdopen(hCrt, "w");
+	setvbuf(hf_out, NULL, _IONBF, 1);
+	*stdout = *hf_out;
+	printf("3D Asteroids Game by Dustin Greene.\n");
+
+	HANDLE handle_in = GetStdHandle(STD_INPUT_HANDLE);
+	hCrt = _open_osfhandle((long)handle_in, _O_TEXT);
+	FILE* hf_in = _fdopen(hCrt, "r");
+	setvbuf(hf_in, NULL, _IONBF, 128);
+	*stdin = *hf_in;
+#endif
+
+
+
+	/* Create Game Engine */
 	GameEngine gameApp(hInstance, 800, 600);
 	
-	if( !gameApp.Init() )
+	/* Initialize Game Engine*/
+	if (!gameApp.Init()) {
+		printf("Error: Press enter to continue.\n");
+		getchar();
 		return 0;
+	}
 	
+	/* Call Game Loop */
 	return gameApp.Run();
 }
 
@@ -58,21 +119,31 @@ GameEngine::GameEngine(HINSTANCE hInstance, int Width, int Height)
 	: Engine(hInstance, Width, Height) {
 
 	/* Init variables, matrices ... */
+		debugMode = false;
+		menuMode = false;
+		gameOver = false;
+		gameWin = false;
+		shaderLoaded = false;
 }
 GameEngine::~GameEngine() {
-
+	delete reticle;
 }
+
 
 bool GameEngine::Init() {
 
-	if( !Engine::Init() )
+	if (!Engine::Init()) {
 		return false;
+	}
+	shaderLoaded = true;	// At this point, shaders will all be loaded
+
 
 	/* Initialize all game objects */
 
-	// Init reticle for ship
+	// Init targeting reticle
 	Shader* shader = shaderContainer_.GetShaderPtr("Reticle");
 	reticle = new Reticle(shader);
+
 
 	/* Set any other variables like mouse position ... */
 
@@ -83,8 +154,6 @@ bool GameEngine::Init() {
 	glCullFace(GL_BACK);
 	glFrontFace(GL_CW);
 
-	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
 	glDepthFunc(GL_LEQUAL);
@@ -94,18 +163,53 @@ bool GameEngine::Init() {
 }
 
 void GameEngine::OnResize() {
-	if(!shaderReady) 
-		return; // some systems call resize before shader has been loaded
+	if(!shaderLoaded) 
+		return; // Win 8 laptop crashes without this check for some reason
 
 	Engine::OnResize();
 }
 
+
+void GameEngine::DebugMode() {
+	/* Debug Mode */
+	debugMode = !debugMode;
+	if(debugMode) {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	}else {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	}
+}
+
+void GameEngine::MenuMode() {
+	menuMode = !menuMode;
+	if(menuMode) {
+		timer.Stop();
+	}else {
+		timer.Start();
+	}
+}
+
+
 void GameEngine::UpdateScene(float dt) {
+	if(Paused) {
+		POINT setMouseToMiddle;
+		setMouseToMiddle.x = 400;
+		setMouseToMiddle.y = 300;
+		ClientToScreen(MainWnd_, &setMouseToMiddle);
+		SetCursorPos(setMouseToMiddle.x, setMouseToMiddle.y);
+		return; // don't do any game updates
+	}
 
 	/* Control the Camera */
 	if (GetAsyncKeyState('W') & 0x8000) {
 		cam->MoveForward();
 	}
+
+
+
+	/*	Allows only forward movement, more like a ship.
+		Uncomment this section if you want to test by moving around 
+		freely in the world.
 	if (GetAsyncKeyState('S') & 0x8000) {
 		cam->MoveBackward();
 	}
@@ -121,6 +225,8 @@ void GameEngine::UpdateScene(float dt) {
 	if (GetAsyncKeyState('E') & 0x8000) {
 		cam->MoveDown();
 	}
+	*/
+
 
 
 	/* Mouse Movement */
@@ -141,19 +247,24 @@ void GameEngine::UpdateScene(float dt) {
 		ClientToScreen(MainWnd_, &currMousePos);
 		SetCursorPos(currMousePos.x, currMousePos.y);
 	}
-	
-	/* Update player */
-	world->UpdatePlayer(cam->GetPosition(), cam->GetForwardDir());
-
-
 
 	/* Update camera and view matrix */
 	cam->Update();
 
 
+	
+	/* Update player */
+	world->UpdatePlayer(cam->GetPosition(), cam->GetForwardDir());
+
 
 	/* Update world objects */
 	world->Update(dt);
+
+
+	/* Check for Game won condition */
+	if (world->AsteroidCount() == 0) {
+		gameWin = true;
+	}
 
 
 	/* Check for Game Over */
@@ -172,24 +283,23 @@ void GameEngine::UpdateScene(float dt) {
 			world->ResetPlayer(cam->GetPosition(), cam->GetForwardDir());
 		}else {
 			// Game Over: could do red screen for a few sec, then quit
-			PostQuitMessage(0);
+			menuMode = false;
+			gameOver = true;
+			//PostQuitMessage(0);
 		}
 	}
 }
 
-
-void GameEngine::DrawScene() {
+void GameEngine::DrawWorld() {
 	/* Clear screen */
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClearDepth(1.0f);
 	glClearStencil(0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
-
+	
 	/* Enable Shader */
 	currShaderProgram = shaderContainer_.GetShaderPtr("Basic");
 	currShaderProgram->SetShader();
-
 
 	/* Set any uniforms that are per frame */
 	int i = 1;
@@ -198,29 +308,52 @@ void GameEngine::DrawScene() {
 	/* Set view uniform */
 	glm::mat4 viewMatrix = cam->GetViewMatrix();
 	currShaderProgram->SetUniform("viewMatrix", viewMatrix);
-	
 
 	// DRAW OBJECTS 
 	world->SetCurrShader(currShaderProgram);
 	world->Render();
 
-
 	currShaderProgram->ClearShader();
-
-
-
-
-
 
 	// Draw reticle on screen
 	reticle->Render();
-	
-	/* Game loop will call SwapBuffers() */
 }
 
 
+void GameEngine::DrawScene() {
 
+	if (menuMode) {
+		quad->SetTexture(textureContainer_.GetTexPtr("Menu"));
+		quad->Render();
+	}
+	else if (debugMode) {
+		DrawWorld();
+	}
+	else if (gameOver) {
+		menuMode = false;
+		quad->SetTexture(textureContainer_.GetTexPtr("GameOver"));
+		quad->Render();
+	}
+	else if (gameWin) {
+		quad->SetTexture(textureContainer_.GetTexPtr("GameWin"));
+		quad->Render();
+	}
+	else {
+		/* Bind FBO before drawing sceen */
+		postProcess->Bind();
 
+		/* Draw Game World to FBO */
+		DrawWorld();
+
+		/* Unbind FBO */
+		postProcess->UnBind();
+
+		/* Post Process Draw */
+		postProcess->Draw();
+	}
+
+	/* Game loop will call SwapBuffers() */
+}
 
 
 
@@ -253,28 +386,12 @@ void GameEngine::OnMouseFire(WPARAM btnState, int x, int y) {
 	Mesh* mesh = meshContainer_.GetMeshPtr("Rectangle");
 	Shader* basicShader = shaderContainer_.GetShaderPtr("Basic");
 
-	// Fire bullet/laser
+	// Fire bullet
+	world->PlayerFire(cam);
 
-	// Get ship position "cam position"
-	vec3 pos = cam->GetPosition();
-	vec3 right = cam->GetRightDir();
-	vec3 bulletPos = pos + (0.5f * right);
-	bulletPos.y -= 0.5f;
-
-	vec3 lookDir = cam->GetForwardDir();
-	vec3 target = lookDir * 100.0f + pos; 
-	vec3 targetVector = target - bulletPos;
-	targetVector = glm::normalize(targetVector);
-	targetVector *= BULLET_SPEED;
-
-	float theta = cam->GetTheta();
-	float phi = cam->GetPhi();
-
-	Laser* newBullet = new Laser(mesh, basicShader);
-	newBullet->Initialize(bulletPos, targetVector, theta, phi);
-
-	world->AddBulletObject(newBullet);
 }
 
 
-
+void GameEngine::ChangeEffect() {
+	postProcess->ChangeEffect();
+}

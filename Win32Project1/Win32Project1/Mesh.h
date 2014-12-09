@@ -23,41 +23,29 @@ public:
 };
 
 
+
+
 class Mesh {
 public: 
-	Mesh(const std::string name);
-	Mesh(const std::string file, int type, unsigned int width, unsigned int height);
+	Mesh(const std::string name_);
 	~Mesh();
 
 
+	// Base class
 	void SetBuffers(); /* Activates this mesh's vao and vbo's */
 	void ClearBuffers(); /* Deactivates this mesh's vao and vbo's */
 
-	unsigned int GetIndexCount();
+
+
+	// Base class
+	const unsigned int GetIndexCount()const;
 	const std::string& GetName()const;
-	
-private:
-
-	//void CreateAsteroidSphere();
 
 
-
-	/* Private helper functions for loading an .obj file for mesh. */
-	bool Initialize();
-	void InitializeBuffers(const std::vector<Vertex>& vertices, const std::vector<GLuint>& faces);
-	void trimString(std::string & str);
-
-
-	/* CUDA methods */
-	void Sphere();
-
-
-private:
+protected:
 
 	// File for mesh
-	std::string fileName;
-
-	unsigned int width, height;
+	std::string name;
 
 	/* Vertex Array Object */
 	GLuint vao;	
@@ -80,25 +68,6 @@ private:
 	GLuint vboNormal;				// Stores Vertex Normals
 	GLuint vboTextureCoord;			// Stores Vertex Tex Coords
 	GLuint vboIndex;				// Stores Indices for DrawElements
-
-
-
-	/* Cuda Graphics Resource for mapping vbo and cuda in GPU memory */
-	
-	struct cudaGraphicsResource* resPosition;
-	struct cudaGraphicsResource* resNormal;
-	struct cudaGraphicsResource* resTextureCoord;
-	struct cudaGraphicsResource* resIndex;
-	
-
-
-	bool cuda; /* If we are using CUDA for GPGPU acceleration for computation of mesh properties */
-
-
-
-	/* Can also have bool for using compute shader */
-
-
 
 };
 

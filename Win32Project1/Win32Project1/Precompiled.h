@@ -31,8 +31,10 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
+
 // Input & Output
 #include <fstream>
+#include <istream>
 #include <sstream>
 #include <iostream>
 #include <stdlib.h>
@@ -49,3 +51,6 @@
 
 // Time
 #include <time.h>
+
+// PI defines
+#include "PI.h"

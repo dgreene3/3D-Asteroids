@@ -23,5 +23,8 @@ void Uniform::SetUniform(unsigned int& integer) {
 void Uniform::SetUniform(glm::mat4& matrix) {
 	glUniformMatrix4fv(uniform, 1, GL_FALSE, glm::value_ptr(matrix));
 }
+void Uniform::SetUniform(glm::vec2& v) {
+	glUniform2f(uniform, v.x, v.y);
+}
 
 

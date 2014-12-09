@@ -1,16 +1,22 @@
+#pragma once
+
+
 #ifndef PLAYER_H
 #define PLAYER_H
+
+
+#include "Precompiled.h"
 
 #include "Camera.h"
 #include "Laser.h"
 
-#include "Precompiled.h"
 
 
 
 
 
-class Player {
+
+class Player : public Object {
 public:
 	Player();
 	~Player();
@@ -24,9 +30,16 @@ public:
 	bool Alive();
 	void Reset(glm::vec3& pos, glm::vec3& dir);
 
+	bool isPowerUpActive()const;
+
 
 	glm::vec3 GetPos();
-	float GetRadius();
+	float GetRadius()const;
+	ObjectType GetType()const;
+
+	void Collide(Object* other);
+
+	void Fire(std::vector<Object*> * bullets, Mesh* mesh, Shader* shader, Camera* cam);
 
 
 private:
@@ -41,6 +54,8 @@ private:
 
 	bool tookHit; 
 	bool isAlive;
+
+	bool PowerUpActive;
 };
 
 #endif

@@ -15,6 +15,11 @@ public:
 
 	void Update(float dt); 
 	void Render();
+
+	float GetRadius()const;
+	ObjectType GetType()const;
+
+	void Collide(Object* other);
 };
 
 #endif

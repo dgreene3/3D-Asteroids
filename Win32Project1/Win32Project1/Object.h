@@ -1,3 +1,6 @@
+#pragma once
+
+
 #ifndef OBJECT_H
 #define OBJECT_H
 
@@ -8,8 +11,8 @@
 #include "Texture.h"
 #include "Shader.h"
 
-#include "Type.h"
 
+enum ObjectType {ASTEROID, PLANET, BULLET, LEVEL, PLAYER, POWER_UP};
 
 
 class Object {
@@ -28,7 +31,10 @@ public:
 	virtual void FlagToDelete();
 
 
-	glm::vec3 GetPos();
+	virtual glm::vec3 GetPos()const;
+	virtual float GetRadius()const =0;
+
+	virtual void Collide(Object* other); // determine behavior when object collides with another object
 
 
 	virtual bool Initialize(); 
@@ -47,8 +53,10 @@ public:
 
 	void SetTransformation(glm::mat4& transform);
 
-	bool GetActive();
+	virtual ObjectType GetType()const =0;
 
+	bool GetActive();
+	const std::string& GetTextureName()const;
 
 	/* Maybe have method to update per object uniforms */
 
@@ -60,10 +68,11 @@ private:
 
 protected:
 
-	Type type;
 	std::string objFile;
 	std::string meshName;
 	std::string texName;
+
+	unsigned int id;	/* ID is the index that the object occupies in the vector */
 
 
 	/* Graphics related members */

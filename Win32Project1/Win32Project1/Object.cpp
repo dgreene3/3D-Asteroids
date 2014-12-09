@@ -20,10 +20,6 @@ Object::~Object() {
 
 }
 
-
-
-
-
 bool Object::Initialize() {
 
 	return false; /* Temp to get to compile */
@@ -60,6 +56,7 @@ void Object::SetTexture(Texture* tex) {
 }
 
 
+
 void Object::Update(float dt) {
 	// Every object in the game derives from class Object and overrides this
 	// method based on each objects own behavior
@@ -93,9 +90,10 @@ void Object::Render() {
 
 
 
-glm::vec3 Object::GetPos() {
+glm::vec3 Object::GetPos()const {
 	return PosW;
 }
+
 
 bool Object::GetActive() {
 	return isActive;
@@ -109,6 +107,14 @@ void Object::FlagToDelete() {
 	this->isActive = false;
 }
 
+
+const std::string& Object::GetTextureName()const {
+	return texName;
+}
+
+void Object::Collide(Object* other) {
+
+}
 
 
 

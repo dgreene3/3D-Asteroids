@@ -9,6 +9,8 @@
 #include "Engine.h"
 #include "Asteroid.h"
 #include "Laser.h"
+#include "CudaMesh.h"
+#include "NormalMesh.h"
 
 using namespace std;
 
@@ -22,23 +24,21 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) 
 	return engine->MsgProc(hWnd, msg, wParam, lParam);
 }
 
-Engine::Engine(HINSTANCE hInstance, int Width, int Height) : 
-	WindowWidth(Width), WindowHeight(Height), AppInst_(hInstance) {
+Engine::Engine(HINSTANCE hInstance, int Width, int Height) : WindowWidth(Width), WindowHeight(Height), AppInst_(hInstance) {
 		engine = this;
-		shaderReady = false;
 }
 Engine::~Engine() {
 	/* Release objects */
-	/*for(unsigned int i = 0; i < staticObjects.size(); ++i) {
-		Object* curr = staticObjects[i];
-		delete curr;
-	}*/
 
 	/* Release World */
 	delete world;
 
 	/* Release camera*/
 	delete cam;
+
+
+	delete quad;
+
 }
 
 float Engine::AspectRatio()const {
@@ -48,8 +48,11 @@ float Engine::AspectRatio()const {
 
 
 bool Engine::Init() {
+	printf("Initializing Game.\n");
+	bool quit = false;
+
 	/* Init Camera */
-	glm::vec3 pos(0.0f, 0.0f, 1700.0f);
+	glm::vec3 pos(0.0f, 0.0f, 1600.0f);
 	glm::vec3 target(0.0f, 0.0f, 0.0f);
 	glm::vec3 up(0.0f, 1.0f, 0.0f);
 	cam = new Camera(pos, target, up);
@@ -57,21 +60,22 @@ bool Engine::Init() {
 
 	/* Initialize Systems and Resources */
 	if(!InitMainWindow())
-		return false;
+		quit = true;
 	if(!InitOpenGL())
-		return false;
+		quit = true;
 	if(!InitShaders()) 
-		return false;
+		quit = true;
 	if(!InitMeshes())
-		return false;
+		quit = true;
 	if(!InitTextures())
-		return false;
+		quit = true;
 	if(!InitObjectInsts())
-		return false;
+		quit = true;
 
-	shaderReady = true;
+
 
 	/* Init Mouse for FPS movement with no clicking */
+	/* This is used for debugging */
 	fpsMode = true;
 	if(fpsMode) {
 		middleScreen.x = 400;
@@ -80,8 +84,10 @@ bool Engine::Init() {
 		SetCursorPos(middleScreen.x, middleScreen.y);
 		ShowCursor(false);
 	}
-	
-	return true;
+	if(quit) 
+		return false;
+	else
+		return true;
 }
 
 bool Engine::InitMainWindow() {
@@ -188,19 +194,43 @@ bool Engine::InitTextures() {
 	tex->Init();
 	textureContainer_.AddTexture(tex, "asteroid1");
 
-	tex = new Texture("asteroid2", "Textures/asteroid2.jpg");
+	/*tex = new Texture("asteroid2", "Textures/asteroid2.jpg");
 	tex->Init();
-	textureContainer_.AddTexture(tex, "asteroid2");
+	textureContainer_.AddTexture(tex, "asteroid2");*/
+
+	/* Load Menu Texture */
+	tex = new Texture("Menu", "Textures/menu.jpg");
+	tex->Init();
+	textureContainer_.AddTexture(tex, "Menu");
+
+	/* Load Game Over Screen Texture */
+	tex = new Texture("GameOver", "Textures/gameover.jpg");
+	tex->Init();
+	textureContainer_.AddTexture(tex, "GameOver");
+
+	/* Load Game Win Screen Texture */
+	tex = new Texture("GameWin", "Textures/gamewin.jpg");
+	tex->Init();
+	textureContainer_.AddTexture(tex, "GameWin");
 
 	
 	return true;
 }
 
 bool Engine::InitShaders() {
+	/* Initialize Post Process */
+	glm::ivec2 windowSize(800, 600); // Bug in window size
+	postProcess = new PostProcess();
+	if (!postProcess->Initialize(windowSize))
+		return false;
+
+
 
 	/* Create shader */
 	Shader* shader = new Shader("Shaders/basic.vert", "Shaders/basic.frag");
-
+	if(!shader->Initialize()) {
+		return false;
+	}
 	/* Set Proj Uniform after shader is created. Only changes on window resize */
 	shader->AddUniform("projMatrix", UniformType::MATRIX4_U);
 
@@ -237,7 +267,26 @@ bool Engine::InitShaders() {
 
 
 	shader = new Shader("Shaders/Reticle.vert", "Shaders/Reticle.frag");
+	if(!shader->Initialize()) {
+		return false;
+	}
+
 	shaderContainer_.AddShaderProgram(shader, "Reticle");
+
+
+	shader = new Shader("Shaders/Menu.vert", "Shaders/Menu.frag");
+	if(!shader->Initialize()) {
+		return false;
+	}
+
+	shader->AddUniform("tex", UniformType::SAMPLER2D_U);
+
+	// Do the set/clear inside setUniform 
+	shader->SetShader();
+	shader->SetUniform("tex", 0);
+	shader->ClearShader();
+
+	shaderContainer_.AddShaderProgram(shader, "Menu");
 
 
 	return true;
@@ -245,7 +294,8 @@ bool Engine::InitShaders() {
 
 bool Engine::InitMeshes() {
 	// Create one Sphere mesh that all planets will use
-	Mesh* mesh = new Mesh("Sphere", 1, 30, 30); /* Max thread limit per block is 1024 */
+	CudaMesh* mesh = new CudaMesh("Sphere", 30, 30); /* Max thread limit per block is 1024 */
+	mesh->MakeSphere();
 	meshContainer_.AddMesh(mesh);
 
 
@@ -255,8 +305,13 @@ bool Engine::InitMeshes() {
 
 
 	/* Create laser mesh Rectangular cube */
-	mesh = new Mesh("Rectangle");
-	meshContainer_.AddMesh(mesh);
+	NormalMesh* mesh2 = new NormalMesh("Rectangle");
+	mesh2->MakeBox();
+	meshContainer_.AddMesh(mesh2);
+
+	mesh2 = new NormalMesh("Quad");
+	mesh2->MakeQuad();
+	meshContainer_.AddMesh(mesh2);
 
 
 	return true;
@@ -264,70 +319,18 @@ bool Engine::InitMeshes() {
 
 bool Engine::InitObjectInsts() {
 
-	world = new World();
-	world->Initialize(cam->GetPosition(), cam->GetForwardDir());
-
-
-	/* Mesh used for Planets */
-	Mesh* sphereMesh = meshContainer_.GetMeshPtr("Sphere");
-	/* Basic shader program */
-	Shader* basicShader = shaderContainer_.GetShaderPtr("Basic");
-
-	
-	/* Create Planet Objects */
-	std::vector<string> planets, textures;
-	planets.push_back("Objects/Mercury.txt");
-	planets.push_back("Objects/Venus.txt");
-	planets.push_back("Objects/Earth.txt");
-	planets.push_back("Objects/Mars.txt");
-	planets.push_back("Objects/Jupiter.txt");
-	planets.push_back("Objects/Saturn.txt");
-	planets.push_back("Objects/Sun.txt");
-
-	textures.push_back("mercury");
-	textures.push_back("venus");
-	textures.push_back("earth");
-	textures.push_back("mars");
-	textures.push_back("jupiter");
-	textures.push_back("saturn");
-	textures.push_back("sun");
-
-	/* Create planets: serialize object based on object file */
-	for(unsigned int i = 0; i < planets.size(); ++i) {
-		Object* currObj = new Planet(planets.at(i), sphereMesh, basicShader);
-		currObj->Initialize();
-		Texture* tex = textureContainer_.GetTexPtr(textures.at(i));
-		currObj->SetTexture(tex);
-
-		world->AddStaticObject(currObj);
-
-	
+	/* Create world and initialize with objects */
+	world = new World(&meshContainer_, &shaderContainer_, &textureContainer_);
+	if( !world->Initialize(cam->GetPosition(), cam->GetForwardDir()) ) {
+		return false;
 	}
 
-	
-
-	/* Create enviroment object for the level: Stars background */
-	Object* level = new Enviroment();
-	level->SetMesh(sphereMesh);
-	level->SetShader(basicShader);
-	level->SetTexture(textureContainer_.GetTexPtr("stars"));
-
-	world->AddLevelObject(level);
-
-
-	/* Create Asteroid objects */
-	Texture* tex = textureContainer_.GetTexPtr("asteroid1");
-	for(unsigned int i = 0; i < 10; ++i) {
-		Asteroid* currAsteroid = new Asteroid("Objects/Asteroids.txt", sphereMesh, basicShader);
-		currAsteroid->Initialize();
-		currAsteroid->SetTexture(tex);
-
-		world->AddAsteroidObject(currAsteroid);
-	}
-
-
-
-
+	/* Create quad */
+	Mesh* mesh = meshContainer_.GetMeshPtr("Quad");
+	Shader* shader = shaderContainer_.GetShaderPtr("Menu");
+	Texture* texture = textureContainer_.GetTexPtr("Menu");
+	quad = new Quad(shader, texture, mesh);
+	quad->Initialize();
 
 
 	return true;
@@ -347,7 +350,7 @@ int Engine::Run() {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}else {
-			
+		
 			/* Timer tick */
 			timer.Tick();
 			float dt = timer.DeltaTime(); /* Get delta time from last frame */
@@ -357,7 +360,7 @@ int Engine::Run() {
 			DrawScene();
 
 			SwapBuffers(dc);
-			
+		
 		}
 
 	}
@@ -378,19 +381,25 @@ LRESULT Engine::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if(wParam == VK_ESCAPE) {
 				PostQuitMessage(0);
 				return 0;
-			}else if(wParam == VK_F1) {
-				Paused = !Paused; // Turn pause on/off
+			}else if(wParam == 'P') {
+				Paused = !Paused;
+				if(Paused) {
+					timer.Stop();
+				}else {
+					timer.Start();
+				}
+			}else if(wParam == 'N') {
+				DebugMode();
+			}else if(wParam == 'M') {
+				MenuMode();
+			}
+			else if (wParam == 'O') {
+				ChangeEffect();
 			}
 			break;
 
 		case WM_LBUTTONDOWN:
-		case WM_MBUTTONDOWN:
-			OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-			return 0;
-			break;
-		case WM_LBUTTONUP:
-		case WM_MBUTTONUP:
-			OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+			OnMouseFire(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 			return 0;
 			break;
 		case WM_MOUSEMOVE:
@@ -398,13 +407,14 @@ LRESULT Engine::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			return 0;
 			break;
 
-		case WM_RBUTTONDOWN:
-			OnMouseFire(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+		/*case WM_RBUTTONDOWN:
+			OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 			return 0;
 			break;
 		case WM_RBUTTONUP:
+			OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 			return 0;
-			break;
+			break;*/
 
 
 		case WM_DESTROY:
@@ -437,7 +447,9 @@ void Engine::OnResize() {
 	currShaderProgram->SetUniform("projMatrix", projMatrix);	// Only one shader right now for testing, would
 	currShaderProgram->ClearShader();							// have to loop through all and make change
 
-	glViewport(0, 0, WindowWidth, WindowHeight);
+	glViewport(0, 0, 800, 600);
+
+	postProcess->Resize(glm::ivec2(800, 600));
 }
 
 

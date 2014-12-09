@@ -14,6 +14,10 @@ public:
 	void Update(float dt);
 
 	float GetRadius()const;
+	glm::vec3 GetPos()const;
+	ObjectType GetType()const;
+
+	void Collide(Object* other);
 
 private:
 
@@ -21,6 +25,7 @@ private:
 	float length, width, height;
 	float radius;
 	glm::mat4 rotationMatrix;
+	float lifeSpan;
 };
 
 #endif

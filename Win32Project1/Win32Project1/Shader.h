@@ -15,6 +15,9 @@ public:
 	Shader(std::string vert, std::string frag);
 	~Shader();
 
+
+	bool Initialize();
+
 	void SetShader();
 	void ClearShader();
 
@@ -28,15 +31,31 @@ public:
 
 	void SetUniform(const std::string name, glm::mat4& matrix);
 	void SetUniform(const std::string name, unsigned int value);
+	void SetUniform(const std::string name, glm::vec2& vector);
+
+	GLuint GetHandle()const;
+
+	
+
+private:
+	bool LoadShader(GLenum shaderType, const std::string& strFilename);
+	bool CompileShader(GLenum shaderType, const std::string& shaderText);
+	bool LinkProgram(GLuint program, GLuint vert, GLuint frag);
+	bool CreateProgram(GLuint vert, GLuint frag);
+
+
 
 
 private:
-	bool Initialize();
+	// Files
+	std::string vertex;
+	std::string fragment;
+
+	// Shaders
+	GLuint vertShader;
+	GLuint fragShader;
 
 
-
-
-private:
 	GLuint shaderProgram;
 
 	/* Uniforms */

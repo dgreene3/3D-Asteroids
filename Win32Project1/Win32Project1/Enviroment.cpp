@@ -1,9 +1,10 @@
 #include "Enviroment.h"
 
+#define SIZE 1800.0f
 
 Enviroment::Enviroment() {
 	glm::mat4 scale(1.0f);
-	scale = glm::scale(scale, glm::vec3(1800.0f, 1800.0f, 1800.0f));
+	scale = glm::scale(scale, glm::vec3(SIZE, SIZE, SIZE) );
 	SetTransformation(scale);
 }
 
@@ -24,4 +25,18 @@ void Enviroment::Render() {
 	Object::Render();
 
 	glEnable(GL_CULL_FACE);
+}
+
+
+float Enviroment::GetRadius()const {
+	return SIZE;
+}
+
+ObjectType Enviroment::GetType()const {
+	return ObjectType::LEVEL;
+}
+
+
+void Enviroment::Collide(Object* other) {
+	// don't do anything on any collision right now
 }

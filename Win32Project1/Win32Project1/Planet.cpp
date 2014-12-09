@@ -103,7 +103,22 @@ void Planet::Update(float dt) {
 }
 
 
-float Planet::GetRadius() {
+glm::vec3 Planet::GetPos()const {
+	return PosW;
+}
 
+float Planet::GetRadius()const {
 	return planetRadius;
+}
+
+ObjectType Planet::GetType()const {
+	return ObjectType::PLANET;
+}
+
+
+
+void Planet::Collide(Object* other) {
+
+
+	
 }

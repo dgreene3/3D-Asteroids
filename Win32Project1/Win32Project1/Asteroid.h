@@ -2,7 +2,7 @@
 #define ASTEROID_H
 
 #include "Precompiled.h"
-
+#include "Time.h"
 #include "Object.h"
 
 
@@ -16,8 +16,15 @@ public:
 	void Update(float dt);
 
 
-	float GetRadius();
+	float GetRadius()const;
+	glm::vec3 GetPos()const;
+	ObjectType GetType()const;
+
+	void Collide(Object* other);
+
+
 	bool Hit();
+	void Reflect(); // version 2 will take other asteroids data to reflect
 
 
 protected:
@@ -27,6 +34,11 @@ protected:
 	float radius;
 
 	int hitPoints;
+
+	bool delayedDelete;
+	float timeLeft;
+	Time* timer;
+	
 };
 
 #endif

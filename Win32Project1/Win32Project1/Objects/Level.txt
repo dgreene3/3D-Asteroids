@@ -1,0 +1,7 @@
+S	Objects/Earth.txt
+S 	Objects/Jupiter.txt
+S	Objects/Mars.txt
+S	Objects/Mercury.txt
+S	Objects/Saturn.txt
+S	Objects/Venus.txt
+S	Objects/Sun.txt
